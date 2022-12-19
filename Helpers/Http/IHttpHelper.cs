@@ -1,9 +1,7 @@
 namespace Monolithic.Helpers;
 
-public interface IHttpHelper<T> where T : class
+public interface IHttpHelper<T>
 {
-    Task<IEnumerable<T>> GetAllAsync(string url, string token);
-
     Task<T> GetAsync(string url, string token);
 
     Task<bool> CreateAsync(string url, T obj, string token);

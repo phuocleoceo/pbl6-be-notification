@@ -23,7 +23,7 @@ public class NotificationController : BaseController
                         [FromQuery] NotificationParams notificationParams)
     {
         ReqUser reqUser = HttpContext.Items["reqUser"] as ReqUser;
-        var notifications = await _notyService.GetNotifications(reqUser.Id, reqUser.Token, notificationParams);
+        var notifications = await _notyService.GetNotifications(reqUser, notificationParams);
         return new BaseResponse<PagedList<NotificationDTO>>(notifications);
     }
 
@@ -58,5 +58,49 @@ public class NotificationController : BaseController
             return new BaseResponse<bool>(notyUpdated, HttpCode.NO_CONTENT);
         else
             return new BaseResponse<bool>(notyUpdated, HttpCode.BAD_REQUEST, "", false);
+    }
+
+    [HttpPost("push/review")]
+    // [Authorize]
+    public async Task<BaseResponse<bool>> PushReviewNotification(ReviewNotificationDTO reviewDTO)
+    {
+        var notiCreated = await _notyService.CreateReviewOnPostNoty(reviewDTO);
+        if (notiCreated)
+            return new BaseResponse<bool>(notiCreated, HttpCode.CREATED);
+        else
+            return new BaseResponse<bool>(notiCreated, HttpCode.BAD_REQUEST, "", false);
+    }
+
+    [HttpPost("push/booking")]
+    // [Authorize]
+    public async Task<BaseResponse<bool>> PushBookingNotification(BookingNotificationDTO bookingDTO)
+    {
+        var notiCreated = await _notyService.CreateBookingOnPostNoty(bookingDTO);
+        if (notiCreated)
+            return new BaseResponse<bool>(notiCreated, HttpCode.CREATED);
+        else
+            return new BaseResponse<bool>(notiCreated, HttpCode.BAD_REQUEST, "", false);
+    }
+
+    [HttpPost("push/approve-meeting")]
+    // [Authorize]
+    public async Task<BaseResponse<bool>> PushApproveMeetingNotification(ApproveMeetingNotificationDTO approveDTO)
+    {
+        var notiCreated = await _notyService.CreateApproveMeetingNoty(approveDTO);
+        if (notiCreated)
+            return new BaseResponse<bool>(notiCreated, HttpCode.CREATED);
+        else
+            return new BaseResponse<bool>(notiCreated, HttpCode.BAD_REQUEST, "", false);
+    }
+
+    [HttpPost("push/confirm-met")]
+    // [Authorize]
+    public async Task<BaseResponse<bool>> PushConfirmMetNotification(ConfirmMetNotificationDTO confirmDTO)
+    {
+        var notiCreated = await _notyService.CreateConfirmMetNoty(confirmDTO);
+        if (notiCreated)
+            return new BaseResponse<bool>(notiCreated, HttpCode.CREATED);
+        else
+            return new BaseResponse<bool>(notiCreated, HttpCode.BAD_REQUEST, "", false);
     }
 }

@@ -65,8 +65,6 @@ public static class ServiceExtension
     {
         services.AddScoped<ISendMailHelper, SendMailHelper>();
         services.AddSingleton<ILoggerManager, LoggerManager>();
-
-        services.AddSingleton<IHttpHelper<UserDTO>, HttpHelper<UserDTO>>();
     }
 
     private static void ConfigSwagger(this IServiceCollection services, IConfigUtil configUtil)
