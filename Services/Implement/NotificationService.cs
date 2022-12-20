@@ -6,6 +6,7 @@ using Monolithic.Models.Common;
 using Monolithic.Models.DTO;
 using Monolithic.Constants;
 using Monolithic.Helpers;
+using Newtonsoft.Json;
 using AutoMapper;
 
 namespace Monolithic.Services.Implement;
@@ -13,42 +14,50 @@ namespace Monolithic.Services.Implement;
 public class NotificationService : INotificationService
 {
     private readonly INotificationRepository _notyRepo;
-    private readonly IHttpHelper<UserDTO> _userHttpHelper;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IHttpHelper<List<UserNotificationDTO>> _userHttpHelper;
     private readonly IConfiguration _configuration;
     private readonly IMapper _mapper;
     public NotificationService(INotificationRepository notyRepo,
-                               IHttpHelper<UserDTO> userHttpHelper,
+                               IHttpClientFactory httpClientFactory,
                                IConfiguration configuration,
                                IMapper mapper)
     {
         _notyRepo = notyRepo;
-        _userHttpHelper = userHttpHelper;
+        _httpClientFactory = httpClientFactory;
         _configuration = configuration;
         _mapper = mapper;
+        _userHttpHelper = new HttpHelper<List<UserNotificationDTO>>(_httpClientFactory);
     }
 
-    public async Task<PagedList<NotificationDTO>> GetNotifications(int userId,
-                                                string token,
+    public async Task<PagedList<NotificationDTO>> GetNotifications(ReqUser reqUser,
                                                 NotificationParams notificationParams)
     {
-        PagedList<NotificationEntity> notyEntityList = await _notyRepo.GetNotifications(userId, notificationParams);
+        PagedList<NotificationEntity> notyEntityList = await _notyRepo.GetNotifications(reqUser.Id, notificationParams);
+        var originUserIds = string.Join(",", notyEntityList.Records.Select(n => n.OriginUserId).Distinct());
+        var originUsers = await GetUsersNotification(originUserIds, reqUser.Token);
+
         var notyDTOList = notyEntityList.Records
-                                .Select(b => mappingNoti(b, token))
-                                .Select(b => b.Result).ToList();
+                                        .Select(b => mappingNotification(b, originUsers))
+                                        .ToList();
         return new PagedList<NotificationDTO>(notyDTOList, notyEntityList.TotalRecords);
     }
 
-    private async Task<NotificationDTO> mappingNoti(NotificationEntity noti, string token)
+    private NotificationDTO mappingNotification(NotificationEntity noti, List<UserNotificationDTO> originUsers)
     {
         var notiDTO = _mapper.Map<NotificationDTO>(noti);
-        var monolithicService = _configuration["MonolithicService"];
-        string userUrl = $"{monolithicService}/api/user/anonymous?userId={noti.OriginUserId}";
-
-        var userDTO = await _userHttpHelper.GetAsync(userUrl, token);
-        notiDTO.OriginUserName = userDTO.DisplayName;
-        notiDTO.OriginUserEmail = userDTO.UserAccountEmail;
-        notiDTO.OriginUserAvatar = userDTO.Avatar;
+        var userDTO = originUsers.FirstOrDefault(u => u.OriginUserId == noti.OriginUserId);
+        notiDTO.OriginUserName = userDTO.OriginUserName;
+        notiDTO.OriginUserEmail = userDTO.OriginUserEmail;
+        notiDTO.OriginUserAvatar = userDTO.OriginUserAvatar;
         return notiDTO;
+    }
+
+    private async Task<List<UserNotificationDTO>> GetUsersNotification(string originUserIds, string token)
+    {
+        var monolithicService = _configuration["MonolithicService"];
+        string userUrl = $"{monolithicService}/api/user/notification/{originUserIds}";
+        return await _userHttpHelper.GetAsync(userUrl, token);
     }
 
     public async Task<CountUnreadNotificationDTO> CountUnreadNotification(int userId)
@@ -75,94 +84,78 @@ public class NotificationService : INotificationService
         return await _notyRepo.SetAllNotyHasRead(userId);
     }
 
-    // public async Task<bool> CreateReviewOnPostNoty(ReviewNotificationDTO createDTO)
-    // {
-    //     PostEntity post = await _postRepo.GetPostById(createDTO.PostId);
-    //     if (post == null)
-    //         throw new BaseException(HttpCode.BAD_REQUEST, "Invalid review on post");
+    public async Task<bool> CreateReviewOnPostNoty(ReviewNotificationDTO createDTO)
+    {
+        NotificationEntity notyEntity = new NotificationEntity()
+        {
+            Code = NotificationCode.REVIEW__HAS_REVIEW_ON_POST,
+            ExtraData = JsonConvert.SerializeObject(new
+            {
+                PostId = createDTO.PostId,
+                PostTitle = createDTO.PostTitle,
+                ReviewId = createDTO.ReviewId,
+                ReviewContent = createDTO.ReviewContent,
+                ReviewRating = createDTO.ReviewRating,
+            }),
+            HasRead = false,
+            OriginUserId = createDTO.OriginUserId,
+            TargetUserId = createDTO.HostId,
+        };
+        return await _notyRepo.CreateNotification(notyEntity);
+    }
 
-    //     NotificationEntity notyEntity = new NotificationEntity()
-    //     {
-    //         Code = NotificationCode.REVIEW__HAS_REVIEW_ON_POST,
-    //         ExtraData = JsonConvert.SerializeObject(new
-    //         {
-    //             PostId = createDTO.PostId,
-    //             PostTitle = post.Title,
-    //             ReviewId = createDTO.ReviewId,
-    //             ReviewContent = createDTO.ReviewContent,
-    //             ReviewRating = createDTO.ReviewRating,
-    //         }),
-    //         HasRead = false,
-    //         OriginUserId = createDTO.OriginUserId,
-    //         TargetUserId = post.HostId,
-    //     };
-    //     return await _notyRepo.CreateNotification(notyEntity);
-    // }
+    public async Task<bool> CreateBookingOnPostNoty(BookingNotificationDTO createDTO)
+    {
+        NotificationEntity notyEntity = new NotificationEntity()
+        {
+            Code = NotificationCode.BOOKING__HAS_BOOKING_ON_POST,
+            ExtraData = JsonConvert.SerializeObject(new
+            {
+                PostId = createDTO.PostId,
+                PostTitle = createDTO.PostTitle,
+                BookingId = createDTO.BookingId,
+                BookingTime = createDTO.BookingTime,
+            }),
+            HasRead = false,
+            OriginUserId = createDTO.OriginUserId,
+            TargetUserId = createDTO.HostId,
+        };
+        return await _notyRepo.CreateNotification(notyEntity);
+    }
 
-    // public async Task<bool> CreateBookingOnPostNoty(BookingNotificationDTO createDTO)
-    // {
-    //     PostEntity post = await _postRepo.GetPostById(createDTO.PostId);
-    //     if (post == null)
-    //         throw new BaseException(HttpCode.BAD_REQUEST, "Invalid booking on post");
+    public async Task<bool> CreateApproveMeetingNoty(ApproveMeetingNotificationDTO createDTO)
+    {
+        NotificationEntity notyEntity = new NotificationEntity()
+        {
+            Code = NotificationCode.BOOKING__HOST_APPROVE_MEETING,
+            ExtraData = JsonConvert.SerializeObject(new
+            {
+                PostId = createDTO.PostId,
+                PostTitle = createDTO.PostTitle,
+                BookingId = createDTO.BookingId,
+            }),
+            HasRead = false,
+            OriginUserId = createDTO.HostId,
+            TargetUserId = createDTO.TargetUserId,
+        };
+        return await _notyRepo.CreateNotification(notyEntity);
+    }
 
-    //     NotificationEntity notyEntity = new NotificationEntity()
-    //     {
-    //         Code = NotificationCode.BOOKING__HAS_BOOKING_ON_POST,
-    //         ExtraData = JsonConvert.SerializeObject(new
-    //         {
-    //             PostId = createDTO.PostId,
-    //             PostTitle = post.Title,
-    //             BookingId = createDTO.BookingId,
-    //             BookingTime = createDTO.BookingTime,
-    //         }),
-    //         HasRead = false,
-    //         OriginUserId = createDTO.OriginUserId,
-    //         TargetUserId = post.HostId,
-    //     };
-    //     return await _notyRepo.CreateNotification(notyEntity);
-    // }
-
-    // public async Task<bool> CreateApproveMeetingNoty(ApproveMeetingNotificationDTO createDTO)
-    // {
-    //     PostEntity post = await _postRepo.GetPostById(createDTO.PostId);
-    //     if (post == null)
-    //         throw new BaseException(HttpCode.BAD_REQUEST, "Invalid meeting on post");
-
-    //     NotificationEntity notyEntity = new NotificationEntity()
-    //     {
-    //         Code = NotificationCode.BOOKING__HOST_APPROVE_MEETING,
-    //         ExtraData = JsonConvert.SerializeObject(new
-    //         {
-    //             PostId = createDTO.PostId,
-    //             PostTitle = post.Title,
-    //             BookingId = createDTO.BookingId,
-    //         }),
-    //         HasRead = false,
-    //         OriginUserId = post.HostId,
-    //         TargetUserId = createDTO.TargetUserId,
-    //     };
-    //     return await _notyRepo.CreateNotification(notyEntity);
-    // }
-
-    // public async Task<bool> CreateConfirmMetNoty(ConfirmMetNotificationDTO createDTO)
-    // {
-    //     PostEntity post = await _postRepo.GetPostById(createDTO.PostId);
-    //     if (post == null)
-    //         throw new BaseException(HttpCode.BAD_REQUEST, "Invalid meeting on post");
-
-    //     NotificationEntity notyEntity = new NotificationEntity()
-    //     {
-    //         Code = NotificationCode.BOOKING__HOST_CONFIRM_MET,
-    //         ExtraData = JsonConvert.SerializeObject(new
-    //         {
-    //             PostId = createDTO.PostId,
-    //             PostTitle = post.Title,
-    //             BookingId = createDTO.BookingId,
-    //         }),
-    //         HasRead = false,
-    //         OriginUserId = post.HostId,
-    //         TargetUserId = createDTO.TargetUserId,
-    //     };
-    //     return await _notyRepo.CreateNotification(notyEntity);
-    // }
+    public async Task<bool> CreateConfirmMetNoty(ConfirmMetNotificationDTO createDTO)
+    {
+        NotificationEntity notyEntity = new NotificationEntity()
+        {
+            Code = NotificationCode.BOOKING__HOST_CONFIRM_MET,
+            ExtraData = JsonConvert.SerializeObject(new
+            {
+                PostId = createDTO.PostId,
+                PostTitle = createDTO.PostTitle,
+                BookingId = createDTO.BookingId,
+            }),
+            HasRead = false,
+            OriginUserId = createDTO.HostId,
+            TargetUserId = createDTO.TargetUserId,
+        };
+        return await _notyRepo.CreateNotification(notyEntity);
+    }
 }

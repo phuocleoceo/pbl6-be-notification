@@ -6,8 +6,7 @@ namespace Monolithic.Services.Interface;
 
 public interface INotificationService
 {
-    Task<PagedList<NotificationDTO>> GetNotifications(int userId,
-                                    string token,
+    Task<PagedList<NotificationDTO>> GetNotifications(ReqUser reqUser,
                                     NotificationParams notificationParams);
 
     Task<CountUnreadNotificationDTO> CountUnreadNotification(int userId);
@@ -16,11 +15,11 @@ public interface INotificationService
 
     Task<bool> SetAllNotyHasRead(int userId);
 
-    // Task<bool> CreateReviewOnPostNoty(ReviewNotificationDTO createDTO);
+    Task<bool> CreateReviewOnPostNoty(ReviewNotificationDTO createDTO);
 
-    // Task<bool> CreateBookingOnPostNoty(BookingNotificationDTO createDTO);
+    Task<bool> CreateBookingOnPostNoty(BookingNotificationDTO createDTO);
 
-    // Task<bool> CreateApproveMeetingNoty(ApproveMeetingNotificationDTO createDTO);
+    Task<bool> CreateApproveMeetingNoty(ApproveMeetingNotificationDTO createDTO);
 
-    // Task<bool> CreateConfirmMetNoty(ConfirmMetNotificationDTO createDTO);
+    Task<bool> CreateConfirmMetNoty(ConfirmMetNotificationDTO createDTO);
 }

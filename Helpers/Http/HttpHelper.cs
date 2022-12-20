@@ -1,36 +1,17 @@
+using Monolithic.Models.Common;
 using System.Net.Http.Headers;
 using Newtonsoft.Json;
 using System.Text;
 using System.Net;
-using Monolithic.Models.Common;
 
 namespace Monolithic.Helpers;
 
-public class HttpHelper<T> : IHttpHelper<T> where T : class
+public class HttpHelper<T> : IHttpHelper<T>
 {
     private readonly IHttpClientFactory _httpClientFactory;
     public HttpHelper(IHttpClientFactory httpClientFactory)
     {
         _httpClientFactory = httpClientFactory;
-    }
-
-    public async Task<IEnumerable<T>> GetAllAsync(string url, string token = "")
-    {
-        var request = new HttpRequestMessage(HttpMethod.Get, url);
-        var client = _httpClientFactory.CreateClient();
-        if (!string.IsNullOrWhiteSpace(token))
-        {
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        }
-
-        var response = await client.SendAsync(request);
-        if (response.StatusCode == HttpStatusCode.OK)
-        {
-            var jsonString = await response.Content.ReadAsStringAsync();
-            var obj = JsonConvert.DeserializeObject<IEnumerable<BaseResponse<T>>>(jsonString);
-            return obj.Select(o => o.Data);
-        }
-        return null;
     }
 
     public async Task<T> GetAsync(string url, string token = "")
@@ -49,7 +30,7 @@ public class HttpHelper<T> : IHttpHelper<T> where T : class
             var obj = JsonConvert.DeserializeObject<BaseResponse<T>>(jsonString);
             return obj.Data;
         }
-        return null;
+        return default(T);
     }
 
     public async Task<bool> CreateAsync(string url, T obj, string token = "")
@@ -71,7 +52,7 @@ public class HttpHelper<T> : IHttpHelper<T> where T : class
         }
 
         var response = await client.SendAsync(request);
-        if (response.StatusCode == HttpStatusCode.Created)
+        if (response.StatusCode == HttpStatusCode.OK)
             return true;
         else return false;
     }
@@ -95,7 +76,7 @@ public class HttpHelper<T> : IHttpHelper<T> where T : class
         }
 
         var response = await client.SendAsync(request);
-        if (response.StatusCode == HttpStatusCode.NoContent)
+        if (response.StatusCode == HttpStatusCode.OK)
             return true;
         else return false;
     }
@@ -110,7 +91,7 @@ public class HttpHelper<T> : IHttpHelper<T> where T : class
         }
 
         var response = await client.SendAsync(request);
-        if (response.StatusCode == HttpStatusCode.NoContent)
+        if (response.StatusCode == HttpStatusCode.OK)
             return true;
         else return false;
     }
